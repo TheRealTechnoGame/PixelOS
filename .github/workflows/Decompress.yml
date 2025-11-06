@@ -13,78 +13,59 @@ on:
 jobs:
   decompress:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Find and decompress newly added or modified archives and commit extracted files
-      run: |
-        shopt -s globstar nullglob
-
-        # Ne pas exécuter si le dernier commit est fait par github-actions[bot] (éviter boucle)
-        last_author=$(git log -1 --pretty=format:'%an')
-        if [[ "$last_author" == "github-actions[bot]" ]]; then
-          echo "Last commit made by github-actions[bot], skipping decompression to avoid loop."
-          exit 0
-        fi
-
-        files=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
-
-        archives=()
-        for file in $files; do
-          if [[ "$file" == *.zip || "$file" == *.tar || "$file" == *.tar.gz || "$file" == *.tgz || "$file" == *.tar.bz2 || "$file" == *.tar.xz ]]; then
-            archives+=("$file")
+      - name: Find and decompress newly added or modified archives and commit extracted files
+        run: |
+          shopt -s globstar nullglob
+          # Ne pas exécuter si le dernier commit est fait par github-actions[bot] (éviter boucle)
+          last_author=$(git log -1 --pretty=format:'%an')
+          if [[ "$last_author" == "github-actions[bot]" ]]; then
+            echo "Last commit made by github-actions[bot], skipping decompression to avoid loop."
+            exit 0
           fi
-        done
 
-        if [ ${#archives[@]} -eq 0 ]; then
-          echo "No new or modified archive files to decompress."
-          exit 0
-        fi
+          files=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
+          archives=()
+          for file in $files; do
+            if [[ "$file" == *.zip || "$file" == *.tar || "$file" == *.tar.gz || "$file" == *.tgz || "$file" == *.tar.bz2 || "$file" == *.tar.xz ]]; then
+              archives+=("$file")
+            fi
+          done
 
-        for archive in "${archives[@]}"; do
-          echo "Decompressing $archive"
-          case "$archive" in
-            *.tar.gz) dir="${archive%.tar.gz}_extracted" ;;
-            *.tar.bz2) dir="${archive%.tar.bz2}_extracted" ;;
-            *.tar.xz) dir="${archive%.tar.xz}_extracted" ;;
-            *.tgz) dir="${archive%.tgz}_extracted" ;;
-            *) dir="${archive%.*}_extracted" ;;
-          esac
+          if [ ${#archives[@]} -eq 0 ]; then
+            echo "No new or modified archive files to decompress."
+            exit 0
+          fi
 
-          mkdir -p "$dir"
+          for archive in "${archives[@]}"; do
+            echo "Decompressing $archive"
+            case "$archive" in
+              *.tar.gz) dir="${archive%.tar.gz}_extracted" ;;
+              *.tar.bz2) dir="${archive%.tar.bz2}_extracted" ;;
+              *.tar.xz) dir="${archive%.tar.xz}_extracted" ;;
+              *.tgz) dir="${archive%.tgz}_extracted" ;;
+              *) dir="${archive%.*}_extracted" ;;
+            esac
+            mkdir -p "$dir"
+            case "$archive" in
+              *.zip) unzip -q "$archive" -d "$dir" ;;
+              *.tar) tar -xf "$archive" -C "$dir" ;;
+              *.tar.gz|*.tgz) tar -xzf "$archive" -C "$dir" ;;
+              *.tar.bz2) tar -xjf "$archive" -C "$dir" ;;
+              *.tar.xz) tar -xJf "$archive" -C "$dir" ;;
+              *) echo "Unsupported archive format: $archive" ;;
+            esac
+          done
 
-          case "$archive" in
-            *.zip)
-              unzip -q "$archive" -d "$dir"
-              ;;
-            *.tar)
-              tar -xf "$archive" -C "$dir"
-              ;;
-            *.tar.gz|*.tgz)
-              tar -xzf "$archive" -C "$dir"
-              ;;
-            *.tar.bz2)
-              tar -xjf "$archive" -C "$dir"
-              ;;
-            *.tar.xz)
-              tar -xJf "$archive" -C "$dir"
-              ;;
-            *)
-              echo "Unsupported archive format: $archive"
-              ;;
-          esac
-        done
-
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-
-        git add -A
-
-        if ! git diff --cached --quiet; then
-          git commit -m "Add decompressed files from newly uploaded archives [skip ci]"
-          git push
-        else
-          echo "No changes to commit"
-        fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Add decompressed files from newly uploaded archives [skip ci]"
+            git push
+          else
+            echo "No changes to commit"
+          fi
