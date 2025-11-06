@@ -17,9 +17,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # <--- Important : récupérer tout l’historique pour éviter l’erreur "bad object"
 
       - name: Find and decompress newly added or modified archives and commit extracted files
+        shell: bash
         run: |
+          set -e
+
           # Activer les options shell pour globstar (**) et gérer les tableaux vides
           shopt -s globstar nullglob
 
@@ -31,7 +36,7 @@ jobs:
           fi
 
           # Récupérer la liste des fichiers ajoutés ou modifiés entre les deux commits
-          files=$(git diff --name-only --diff-filter=AM ${{ github.event.before }} ${{ github.sha }})
+          files=$(git diff --name-only --diff-filter=AM "${{ github.event.before }}" "${{ github.sha }}" || true)
 
           # Filtrer uniquement les fichiers archives
           archives=()
@@ -50,7 +55,6 @@ jobs:
           for archive in "${archives[@]}"; do
             echo "Decompressing $archive"
 
-            # Définir le dossier de destination en fonction de l'extension
             case "$archive" in
               *.tar.gz) dir="${archive%.tar.gz}_extracted" ;;
               *.tar.bz2) dir="${archive%.tar.bz2}_extracted" ;;
@@ -61,7 +65,6 @@ jobs:
 
             mkdir -p "$dir"
 
-            # Décompression selon le type d'archive
             case "$archive" in
               *.zip)
                 unzip -q "$archive" -d "$dir"
@@ -88,7 +91,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Ajouter tous les fichiers extraits
+          # Ajouter les fichiers extraits
           git add -A
 
           # Commit et push uniquement s'il y a des changements
