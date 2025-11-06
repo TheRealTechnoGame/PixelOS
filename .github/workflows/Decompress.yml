@@ -1,0 +1,48 @@
+name: Decompress archives on push
+
+on:
+  push:
+    paths:
+      - '**/*.zip'
+      - '**/*.tar'
+      - '**/*.tar.gz'
+      - '**/*.tgz'
+      - '**/*.tar.bz2'
+      - '**/*.tar.xz'
+
+jobs:
+  decompress:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Find and decompress archives
+      run: |
+        shopt -s globstar nullglob
+        for archive in **/*.{zip,tar,tar.gz,tgz,tar.bz2,tar.xz}; do
+          echo "Decompressing $archive"
+          dir="${archive%.*}_extracted"
+          mkdir -p "$dir"
+          case "$archive" in
+            *.zip)
+              unzip -q "$archive" -d "$dir"
+              ;;
+            *.tar)
+              tar -xf "$archive" -C "$dir"
+              ;;
+            *.tar.gz|*.tgz)
+              tar -xzf "$archive" -C "$dir"
+              ;;
+            *.tar.bz2)
+              tar -xjf "$archive" -C "$dir"
+              ;;
+            *.tar.xz)
+              tar -xJf "$archive" -C "$dir"
+              ;;
+            *)
+              echo "Unsupported archive format: $archive"
+              ;;
+          esac
+        done
