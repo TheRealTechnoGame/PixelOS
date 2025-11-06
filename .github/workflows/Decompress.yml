@@ -10,6 +10,9 @@ on:
       - '**/*.tar.bz2'
       - '**/*.tar.xz'
 
+permissions:
+  contents: write  # <--- Autoriser le push au bot
+
 jobs:
   decompress:
     runs-on: ubuntu-latest
@@ -18,27 +21,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # <--- Important : récupérer tout l’historique pour éviter l’erreur "bad object"
+          fetch-depth: 0  # Nécessaire pour git diff
 
       - name: Find and decompress newly added or modified archives and commit extracted files
         shell: bash
         run: |
           set -e
 
-          # Activer les options shell pour globstar (**) et gérer les tableaux vides
           shopt -s globstar nullglob
 
-          # Empêcher la boucle infinie si le dernier commit a été fait par github-actions[bot]
           last_author=$(git log -1 --pretty=format:'%an')
           if [[ "$last_author" == "github-actions[bot]" ]]; then
             echo "Last commit made by github-actions[bot], skipping decompression to avoid loop."
             exit 0
           fi
 
-          # Récupérer la liste des fichiers ajoutés ou modifiés entre les deux commits
           files=$(git diff --name-only --diff-filter=AM "${{ github.event.before }}" "${{ github.sha }}" || true)
 
-          # Filtrer uniquement les fichiers archives
           archives=()
           for file in $files; do
             if [[ "$file" == *.zip || "$file" == *.tar || "$file" == *.tar.gz || "$file" == *.tgz || "$file" == *.tar.bz2 || "$file" == *.tar.xz ]]; then
@@ -51,7 +50,6 @@ jobs:
             exit 0
           fi
 
-          # Décompresser chaque archive dans un dossier dédié
           for archive in "${archives[@]}"; do
             echo "Decompressing $archive"
 
@@ -66,35 +64,19 @@ jobs:
             mkdir -p "$dir"
 
             case "$archive" in
-              *.zip)
-                unzip -q "$archive" -d "$dir"
-                ;;
-              *.tar)
-                tar -xf "$archive" -C "$dir"
-                ;;
-              *.tar.gz|*.tgz)
-                tar -xzf "$archive" -C "$dir"
-                ;;
-              *.tar.bz2)
-                tar -xjf "$archive" -C "$dir"
-                ;;
-              *.tar.xz)
-                tar -xJf "$archive" -C "$dir"
-                ;;
-              *)
-                echo "Unsupported archive format: $archive"
-                ;;
+              *.zip) unzip -q "$archive" -d "$dir" ;;
+              *.tar) tar -xf "$archive" -C "$dir" ;;
+              *.tar.gz|*.tgz) tar -xzf "$archive" -C "$dir" ;;
+              *.tar.bz2) tar -xjf "$archive" -C "$dir" ;;
+              *.tar.xz) tar -xJf "$archive" -C "$dir" ;;
             esac
           done
 
-          # Configurer git pour le commit automatique
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Ajouter les fichiers extraits
           git add -A
 
-          # Commit et push uniquement s'il y a des changements
           if ! git diff --cached --quiet; then
             git commit -m "Add decompressed files from newly uploaded archives [skip ci]"
             git push
