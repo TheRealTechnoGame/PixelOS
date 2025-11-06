@@ -54,11 +54,11 @@ jobs:
             echo "Decompressing $archive"
 
             case "$archive" in
-              *.tar.gz) dir="${archive%.tar.gz}_extracted" ;;
-              *.tar.bz2) dir="${archive%.tar.bz2}_extracted" ;;
-              *.tar.xz) dir="${archive%.tar.xz}_extracted" ;;
-              *.tgz) dir="${archive%.tgz}_extracted" ;;
-              *) dir="${archive%.*}_extracted" ;;
+              *.tar.gz) dir="${archive%.tar.gz}" ;;
+              *.tar.bz2) dir="${archive%.tar.bz2}" ;;
+              *.tar.xz) dir="${archive%.tar.xz}" ;;
+              *.tgz) dir="${archive%.tgz}" ;;
+              *) dir="${archive%.*}" ;;
             esac
 
             mkdir -p "$dir"
